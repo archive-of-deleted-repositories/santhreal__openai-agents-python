@@ -21,18 +21,14 @@ from ..tracing import generation_span
 from ..tracing.span_data import GenerationSpanData
 from ..tracing.spans import Span
 from ..usage import Usage
-from ..version import __version__
 from .chatcmpl_converter import Converter
+from .chatcmpl_helpers import HEADERS, ChatCmplHelpers
 from .chatcmpl_stream_handler import ChatCmplStreamHandler
 from .fake_id import FAKE_RESPONSES_ID
 from .interface import Model, ModelTracing
 
 if TYPE_CHECKING:
     from ..model_settings import ModelSettings
-
-
-_USER_AGENT = f"Agents/Python {__version__}"
-_HEADERS = {"User-Agent": _USER_AGENT}
 
 
 class OpenAIChatCompletionsModel(Model):
@@ -237,9 +233,9 @@ class OpenAIChatCompletionsModel(Model):
             )
 
         reasoning_effort = model_settings.reasoning.effort if model_settings.reasoning else None
-        store = _Helpers.get_store_param(self._get_client(), model_settings)
+        store = ChatCmplHelpers.get_store_param(self._get_client(), model_settings)
 
-        stream_options = _Helpers.get_stream_options_param(
+        stream_options = ChatCmplHelpers.get_stream_options_param(
             self._get_client(), model_settings, stream=stream
         )
 
@@ -259,7 +255,7 @@ class OpenAIChatCompletionsModel(Model):
             stream_options=self._non_null_or_not_given(stream_options),
             store=self._non_null_or_not_given(store),
             reasoning_effort=self._non_null_or_not_given(reasoning_effort),
-            extra_headers=_HEADERS,
+            extra_headers=HEADERS,
             extra_query=model_settings.extra_query,
             extra_body=model_settings.extra_body,
             metadata=self._non_null_or_not_given(model_settings.metadata),
@@ -289,31 +285,3 @@ class OpenAIChatCompletionsModel(Model):
         if self._client is None:
             self._client = AsyncOpenAI()
         return self._client
-
-
-class _Helpers:
-    @classmethod
-    def is_openai(cls, client: AsyncOpenAI):
-        return str(client.base_url).startswith("https://api.openai.com")
-
-    @classmethod
-    def get_store_param(cls, client: AsyncOpenAI, model_settings: ModelSettings) -> bool | None:
-        # Match the behavior of Responses where store is True when not given
-        default_store = True if cls.is_openai(client) else None
-        return model_settings.store if model_settings.store is not None else default_store
-
-    @classmethod
-    def get_stream_options_param(
-        cls, client: AsyncOpenAI, model_settings: ModelSettings, stream: bool
-    ) -> dict[str, bool] | None:
-        if not stream:
-            return None
-
-        default_include_usage = True if cls.is_openai(client) else None
-        include_usage = (
-            model_settings.include_usage
-            if model_settings.include_usage is not None
-            else default_include_usage
-        )
-        stream_options = {"include_usage": include_usage} if include_usage is not None else None
-        return stream_options
