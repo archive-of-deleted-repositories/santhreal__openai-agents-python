@@ -164,6 +164,31 @@ def test_chained_ref_with_sibling_keys_is_resolved():
     assert "$ref" not in a_schema
 
 
+def test_ref_json_pointer_escapes_are_unescaped():
+    # JSON Schema $ref values are JSON Pointers (RFC 6901): ~1 encodes "/" and ~0
+    # encodes "~". Definition names that contain those characters are reachable via
+    # escaped refs (for example MCP tool schemas). Sibling keywords force inlining,
+    # which must look up the unescaped key instead of KeyError on the escaped token.
+    schema = {
+        "$defs": {
+            "foo/bar": {"type": "string"},
+            "foo~bar": {"type": "number"},
+        },
+        "type": "object",
+        "properties": {
+            "slash": {"$ref": "#/$defs/foo~1bar", "description": "slash"},
+            "tilde": {"$ref": "#/$defs/foo~0bar", "description": "tilde"},
+        },
+    }
+    result = ensure_strict_json_schema(schema)
+    assert result["properties"]["slash"]["type"] == "string"
+    assert result["properties"]["slash"]["description"] == "slash"
+    assert "$ref" not in result["properties"]["slash"]
+    assert result["properties"]["tilde"]["type"] == "number"
+    assert result["properties"]["tilde"]["description"] == "tilde"
+    assert "$ref" not in result["properties"]["tilde"]
+
+
 def test_ref_expansion_bomb_is_rejected():
     # A $ref ladder where each level references the next twice expands exponentially
     # (2**N nodes) when inlined. Strict conversion must reject it with a UserError

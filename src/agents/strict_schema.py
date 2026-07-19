@@ -197,6 +197,11 @@ def _ensure_strict_json_schema(
     return json_schema
 
 
+def _unescape_json_pointer_token(token: str) -> str:
+    # RFC 6901: ~1 encodes "/" and ~0 encodes "~". Replace ~1 before ~0.
+    return token.replace("~1", "/").replace("~0", "~")
+
+
 def resolve_ref(*, root: dict[str, object], ref: str) -> object:
     if not ref.startswith("#/"):
         raise ValueError(f"Unexpected $ref format {ref!r}; Does not start with #/")
@@ -204,6 +209,7 @@ def resolve_ref(*, root: dict[str, object], ref: str) -> object:
     path = ref[2:].split("/")
     resolved = root
     for key in path:
+        key = _unescape_json_pointer_token(key)
         value = resolved[key]
         assert is_dict(value), (
             f"encountered non-dictionary entry while resolving {ref} - {resolved}"
